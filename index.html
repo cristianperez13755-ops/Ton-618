@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TON 618 - Gargantúa (Optimizado Móvil)</title>
+    <title>TON 618 - Gargantúa Estable</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', sans-serif; color: #fff; user-select: none; }
         #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
         
         #btn-toggle {
-            position: absolute; top: 20px; right: 20px; background: rgba(5, 10, 20, 0.7);
+            position: absolute; top: 20px; right: 20px; background: rgba(5, 10, 20, 0.8);
             border: 1px solid #ffaa00; color: #ffaa00; padding: 8px 14px; border-radius: 8px;
             cursor: pointer; z-index: 20; font-weight: bold; backdrop-filter: blur(5px);
         }
         
         #ui-panel {
-            position: absolute; top: 70px; right: 20px; background: rgba(10, 5, 5, 0.85);
+            position: absolute; top: 70px; right: 20px; background: rgba(10, 5, 5, 0.9);
             border: 1px solid rgba(255, 150, 0, 0.4); border-radius: 12px; padding: 18px;
             width: 280px; backdrop-filter: blur(10px); z-index: 10; transition: 0.3s;
             box-shadow: 0 0 30px rgba(255, 100, 0, 0.15);
@@ -68,7 +68,7 @@
 
     <div id="ui-panel">
         <h1>GARGANTÚA</h1>
-        <div class="physics-note">Físicas: Órbitas Keplerianas + Doppler Real + TDE</div>
+        <div class="physics-note">Físicas: Órbitas Keplerianas + TDE</div>
         
         <div class="btn-grid">
             <button id="btn-zoom-in">🔍 Acercar</button>
@@ -85,15 +85,15 @@
 
     <div id="info-overlay">
         <strong>TON 618</strong><br>
-        <small style="color: #cbd5e1;">Lado Blanco: Luz acercándose (Doppler)<br>Lado Rojo: Material alejándose.</small>
+        <small style="color: #cbd5e1;">Simulación Gravitacional Activa</small>
     </div>
 
-    <!-- Core Libraries (Eliminado EffectComposer por estabilidad) -->
+    <!-- Core Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
     <script>
-        // Configuración Base Robusta
+        // Configuración Base
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 10000);
         camera.position.set(0, 35, 120);
@@ -106,22 +106,7 @@
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true; controls.dampingFactor = 0.05; controls.maxDistance = 2000;
 
-        // Textura base generada por código
-        function createGasTexture() {
-            const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
-            const ctx = cv.getContext('2d');
-            const gr = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-            gr.addColorStop(0, 'rgba(255,255,255,1)');
-            gr.addColorStop(0.3, 'rgba(255,255,255,0.8)');
-            gr.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.fillStyle = gr; ctx.fillRect(0,0,64,64);
-            const tex = new THREE.Texture(cv);
-            tex.needsUpdate = true;
-            return tex;
-        }
-        const gasTexture = createGasTexture();
-
-        // 1. EL AGUJERO NEGRO
+        // 1. EL AGUJERO NEGRO (Esfera central absoluta)
         const bhRadius = 12; 
         const blackHole = new THREE.Mesh(
             new THREE.SphereGeometry(bhRadius, 64, 64),
@@ -129,129 +114,60 @@
         );
         scene.add(blackHole);
 
-        // 2. DISCO DE ACRECIÓN (Con precisión estricta para GPU móvil)
-        const diskCount = 60000; 
+        // 2. DISCO DE ACRECIÓN ESTABLE (Partículas dinámicas en CPU)
+        const diskCount = 20000;
         const diskGeo = new THREE.BufferGeometry();
-        const dPos = new Float32Array(diskCount * 3);
-        const dCol = new Float32Array(diskCount * 3);
-        const dParams = new Float32Array(diskCount * 2);
+        const diskPositions = new Float32Array(diskCount * 3);
+        const diskColors = new Float32Array(diskCount * 3);
+        const diskRadii = new Float32Array(diskCount);
+        const diskAngles = new Float32Array(diskCount);
 
-        for(let i=0; i<diskCount; i++) {
-            const r = bhRadius * 1.1 + Math.pow(Math.random(), 2.5) * 65;
+        for(let i = 0; i < diskCount; i++) {
+            const r = bhRadius * 1.1 + Math.random() * 55;
             const angle = Math.random() * Math.PI * 2;
-            
-            dPos[i*3] = r * Math.cos(angle);
-            dPos[i*3+1] = (Math.random() - 0.5) * (r * 0.04); 
-            dPos[i*3+2] = r * Math.sin(angle);
-            
-            dParams[i*2] = r; 
-            dParams[i*2+1] = angle;
+            diskRadii[i] = r;
+            diskAngles[i] = angle;
 
-            const normR = (r - bhRadius) / 65;
-            if(normR < 0.1) { dCol[i*3]=1.0; dCol[i*3+1]=0.95; dCol[i*3+2]=0.9; }
-            else if(normR < 0.4) { dCol[i*3]=1.0; dCol[i*3+1]=0.5; dCol[i*3+2]=0.1; }
-            else { dCol[i*3]=0.6; dCol[i*3+1]=0.1; dCol[i*3+2]=0.0; }
-        }
-        diskGeo.setAttribute('position', new THREE.BufferAttribute(dPos, 3));
-        diskGeo.setAttribute('color', new THREE.BufferAttribute(dCol, 3));
-        diskGeo.setAttribute('params', new THREE.BufferAttribute(dParams, 2));
+            diskPositions[i*3] = Math.cos(angle) * r;
+            diskPositions[i*3+1] = (Math.random() - 0.5) * 1.5;
+            diskPositions[i*3+2] = Math.sin(angle) * r;
 
-        const diskMat = new THREE.ShaderMaterial({
-            uniforms: { 
-                time: { value: 0 }, 
-                cameraPos: { value: camera.position }, 
-                GM: { value: 5000.0 } 
-            },
-            vertexShader: `
-                precision mediump float;
-                attribute vec3 color; 
-                attribute vec2 params;
-                uniform float time; 
-                uniform float GM; 
-                uniform vec3 cameraPos;
-                varying vec3 vColor;
-                
-                void main() {
-                    float r = params.x; 
-                    float initialAngle = params.y;
-                    
-                    float angularVelocity = sqrt(GM / (r*r*r));
-                    float currentAngle = initialAngle - (time * angularVelocity);
-                    
-                    vec3 newPos = vec3(cos(currentAngle)*r, position.y, sin(currentAngle)*r);
-                    
-                    vec3 velocityDir = normalize(vec3(sin(currentAngle), 0.0, -cos(currentAngle)));
-                    vec3 viewDir = normalize(cameraPos - newPos);
-                    float dopplerShift = dot(velocityDir, viewDir);
-                    
-                    vec3 finalColor = color;
-                    if(dopplerShift > 0.0) {
-                        finalColor += vec3(0.2, 0.4, 0.7) * (dopplerShift * 2.0);
-                    } else {
-                        finalColor *= (1.0 + dopplerShift * 0.9);
-                        finalColor.b *= 0.2;
-                    }
-                    
-                    // Aumento radical del brillo para compensar la falta de Bloom
-                    vColor = finalColor * (1.5 + dopplerShift*1.5);
-                    
-                    vec4 mvPos = modelViewMatrix * vec4(newPos, 1.0);
-                    gl_Position = projectionMatrix * mvPos;
-                    
-                    float distance = length(mvPos.xyz);
-                    gl_PointSize = clamp(200.0 / distance, 1.0, 50.0) * (1.0 + r/50.0);
-                }
-            `,
-            fragmentShader: `
-                precision mediump float;
-                varying vec3 vColor;
-                void main() {
-                    vec2 xy = gl_PointCoord.xy - vec2(0.5);
-                    float ll = length(xy);
-                    if (ll > 0.5) discard;
-                    
-                    float alpha = pow((0.5 - ll) * 2.0, 1.2);
-                    gl_FragColor = vec4(vColor, alpha);
-                }
-            `,
-            transparent: true, 
-            blending: THREE.AdditiveBlending, 
-            depthWrite: false
-        });
-        
-        scene.add(new THREE.Points(diskGeo, diskMat));
-
-        // 3. FONDO CÓSMICO
-        function createLivingUniverse() {
-            const starGeo = new THREE.BufferGeometry();
-            const stars = 6000;
-            const pos = new Float32Array(stars * 3);
-            const cols = new Float32Array(stars * 3);
-            for(let i=0; i<stars; i++) {
-                const r = 1000 + Math.random() * 3000;
-                const th = Math.random() * Math.PI * 2;
-                const ph = Math.acos(2 * Math.random() - 1);
-                pos[i*3] = r * Math.sin(ph) * Math.cos(th);
-                pos[i*3+1] = r * Math.sin(ph) * Math.sin(th);
-                pos[i*3+2] = r * Math.cos(ph);
-
-                const c = Math.random();
-                if(c > 0.8) { cols[i*3]=0.6; cols[i*3+1]=0.8; cols[i*3+2]=1.0; } 
-                else if(c > 0.3) { cols[i*3]=1.0; cols[i*3+1]=0.9; cols[i*3+2]=0.7; } 
-                else { cols[i*3]=1.0; cols[i*3+1]=0.4; cols[i*3+2]=0.2; } 
+            // Degradado de color dorado/naranja estilo Gargantúa
+            if(r < bhRadius * 1.5) {
+                diskColors[i*3] = 1.0; diskColors[i*3+1] = 0.9; diskColors[i*3+2] = 0.7; // Centro blanco brillante
+            } else {
+                diskColors[i*3] = 1.0; diskColors[i*3+1] = 0.5; diskColors[i*3+2] = 0.1; // Exterior naranja
             }
-            starGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-            starGeo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-            
-            const starMat = new THREE.PointsMaterial({
-                size: 6, vertexColors: true, transparent: true, opacity: 0.8,
-                map: gasTexture, blending: THREE.AdditiveBlending, depthWrite: false
-            });
-            scene.add(new THREE.Points(starGeo, starMat));
         }
-        createLivingUniverse();
 
-        // 4. COMPARADOR DE ESCALA
+        diskGeo.setAttribute('position', new THREE.BufferAttribute(diskPositions, 3));
+        diskGeo.setAttribute('color', new THREE.BufferAttribute(diskColors, 3));
+
+        const diskMat = new THREE.PointsMaterial({
+            size: 1.2,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.85,
+            blending: THREE.AdditiveBlending
+        });
+
+        const accretionDisk = new THREE.Points(diskGeo, diskMat);
+        scene.add(accretionDisk);
+
+        // 3. FONDO ESTELAR
+        const starGeo = new THREE.BufferGeometry();
+        const starCount = 4000;
+        const starPos = new Float32Array(starCount * 3);
+        for(let i = 0; i < starCount * 3; i += 3) {
+            starPos[i] = (Math.random() - 0.5) * 3000;
+            starPos[i+1] = (Math.random() - 0.5) * 3000;
+            starPos[i+2] = (Math.random() - 0.5) * 3000;
+        }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 2, transparent: true, opacity: 0.7 });
+        scene.add(new THREE.Points(starGeo, starMat));
+
+        // 4. COMPARADOR DE ESCALA (Sistema Solar)
         const solarSystemGroup = new THREE.Group();
         solarSystemGroup.position.set(-35, 0, 0); 
         solarSystemGroup.visible = false;
@@ -267,78 +183,73 @@
 
         // 5. FÍSICAS ESTELARES (Gigante Roja)
         let activeStars = [];
-        const GM = 5000;
+        const GM = 4000;
 
         function spawnRedGiant() {
-            const starGroup = new THREE.Group();
+            const starMesh = new THREE.Mesh(
+                new THREE.SphereGeometry(1.5, 32, 32), 
+                new THREE.MeshBasicMaterial({color: 0xff3300})
+            );
             
-            const starMesh = new THREE.Mesh(new THREE.SphereGeometry(1.5, 32, 32), new THREE.MeshBasicMaterial({color: 0xff3300}));
-            starGroup.add(starMesh);
-
-            const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: gasTexture, color: 0xff4400, transparent: true, blending: THREE.AdditiveBlending }));
-            glow.scale.set(10,10,1);
-            starGroup.add(glow);
-
             const angle = Math.random() * Math.PI * 2;
-            const r0 = 150;
-            const pos = new THREE.Vector3(r0*Math.cos(angle), (Math.random()-0.5)*15, r0*Math.sin(angle));
-            starGroup.position.copy(pos);
-            scene.add(starGroup);
+            const r0 = 140;
+            const pos = new THREE.Vector3(r0 * Math.cos(angle), 0, r0 * Math.sin(angle));
+            starMesh.position.copy(pos);
+            scene.add(starMesh);
 
-            const vMag = Math.sqrt(GM / (r0 - bhRadius)) * 0.45; 
+            const vMag = Math.sqrt(GM / (r0 - bhRadius)) * 0.5; 
             const vel = new THREE.Vector3(-Math.sin(angle)*vMag, 0, Math.cos(angle)*vMag);
 
-            activeStars.push({ mesh: starGroup, innerMesh: starMesh, glow: glow, pos: pos, vel: vel, phase: 'orbit' });
+            activeStars.push({ mesh: starMesh, pos: pos, vel: vel, active: true });
         }
 
-        // BUCLE DE ANIMACIÓN (Render nativo)
+        // BUCLE DE ANIMACIÓN
         let clock = new THREE.Clock();
-        let globalTime = 0;
         let timeScale = 0.5;
         const scaleLabel = document.getElementById('scale-label');
 
         function animate() {
             requestAnimationFrame(animate);
-            let delta = Math.min(clock.getDelta(), 0.1); 
-            globalTime += delta * timeScale;
-            
-            diskMat.uniforms.time.value = globalTime;
-            diskMat.uniforms.cameraPos.value.copy(camera.position);
+            let delta = Math.min(clock.getDelta(), 0.1);
+            let t = clock.getElapsedTime() * timeScale;
 
+            // Rotación Kepleriana del disco de acreción
+            const posArr = diskGeo.attributes.position.array;
+            for(let i = 0; i < diskCount; i++) {
+                let r = diskRadii[i];
+                let angle = diskAngles[i] - t * (Math.sqrt(GM / (r * r * r)));
+                posArr[i*3] = Math.cos(angle) * r;
+                posArr[i*3+2] = Math.sin(angle) * r;
+            }
+            diskGeo.attributes.position.needsUpdate = true;
+
+            // Actualizar estrellas lanzadas
             for(let i = activeStars.length - 1; i >= 0; i--) {
                 let star = activeStars[i];
+                if (!star.active) continue;
+
                 let rVec = star.pos.clone();
                 let r = rVec.length();
 
-                let forceMag = GM / Math.pow(Math.max(0.1, r - bhRadius), 2);
+                // Gravedad tipo Paczyński-Wiita
+                let forceMag = GM / Math.pow(Math.max(0.5, r - bhRadius), 2);
                 let accel = rVec.normalize().multiplyScalar(-forceMag);
                 
                 star.vel.add(accel.multiplyScalar(delta * timeScale));
                 star.pos.add(star.vel.clone().multiplyScalar(delta * timeScale));
                 star.mesh.position.copy(star.pos);
 
-                if (star.phase === 'orbit' && r < 35) star.phase = 'tde';
-                else if (star.phase === 'tde') {
-                    star.innerMesh.scale.z += delta * 15 * timeScale; 
-                    star.innerMesh.scale.x = Math.max(0.1, star.innerMesh.scale.x - delta * 2 * timeScale); 
-                    star.innerMesh.scale.y = star.innerMesh.scale.x;
-                    
-                    const dir = star.vel.clone().normalize();
-                    star.innerMesh.quaternion.slerp(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1), dir), 0.5);
+                // Espaguetización visual simple (estirar escala)
+                if (r < 30) {
+                    star.mesh.scale.z += delta * 5;
+                    star.mesh.scale.x = Math.max(0.2, star.mesh.scale.x - delta);
+                }
 
-                    star.innerMesh.material.color.lerp(new THREE.Color(0x88ccff), delta * 2 * timeScale);
-                    star.glow.material.color.lerp(new THREE.Color(0x88ccff), delta * 2 * timeScale);
-
-                    if(r < bhRadius + 2) {
-                        star.innerMesh.material.transparent = true;
-                        star.innerMesh.material.opacity -= delta * 4 * timeScale;
-                        star.glow.material.opacity -= delta * 4 * timeScale;
-                    }
-
-                    if(r < bhRadius || star.innerMesh.material.opacity <= 0) {
-                        scene.remove(star.mesh);
-                        activeStars.splice(i, 1);
-                    }
+                // Destrucción al cruzar el horizonte de eventos
+                if(r < bhRadius) {
+                    scene.remove(star.mesh);
+                    star.active = false;
+                    activeStars.splice(i, 1);
                 }
             }
 
@@ -354,7 +265,7 @@
         }
         animate();
 
-        // CONTROLES UI
+        // CONTROLES DE INTERFAZ
         document.getElementById('btn-toggle').addEventListener('click', () => document.getElementById('ui-panel').classList.toggle('hidden'));
         document.getElementById('timeScale').addEventListener('input', (e) => timeScale = parseFloat(e.target.value));
         
